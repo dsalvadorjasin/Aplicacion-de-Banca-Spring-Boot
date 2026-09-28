@@ -37,7 +37,7 @@ for testing, and students studying enterprise Java application architecture.
 
 ### Prerequisites
 
-- Java 11 or higher
+- Java 17 or higher
 - Maven 3.6+ (or use included Maven wrapper)
 - Any modern IDE (Spring Tool Suite, IntelliJ IDEA, Eclipse)
 
@@ -311,7 +311,7 @@ The application includes Spring Boot integration tests that verify:
 | Port 8989 already in use | Another app using the port | Change `server.port` or kill process |
 | 401 Unauthorized | Missing or incorrect credentials | Use `bankapp:changeit` for basic auth |
 | H2 Console not accessible | Security configuration issue | Set `spring.h2.console.enabled=true` |
-| Maven build fails | Missing Java 11 | Install Java 11 and set `JAVA_HOME` |
+| Maven build fails | Missing Java 17 | Install Java 17 and set `JAVA_HOME` |
 | Swagger UI not loading | Context path configuration | Access via `/bank-api/swagger-ui.html` |
 
 ## Deployment

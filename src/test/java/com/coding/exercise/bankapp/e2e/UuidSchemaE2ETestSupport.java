@@ -4,10 +4,9 @@ import org.springframework.test.context.TestPropertySource;
 
 /**
  * Runs the unmodified application against a test-only schema (e2e/uuid-schema.sql) that
- * stores the entity UUID ids in native H2 {@code uuid} columns instead of the
- * {@code binary(255)} columns Hibernate 5.6 generates. With the generated schema, H2 2.x
- * pads the ids, so every association lookup fails (see {@link DefaultSchemaBaselineE2ETest}).
- * This schema lets the functional contract of the API (CRUD, transfers, history) be exercised.
+ * stores the entity UUID ids in native H2 {@code uuid} columns. Hibernate 6 generates the same
+ * column types (see {@link DefaultSchemaBaselineE2ETest}); the explicit schema keeps the
+ * functional contract of the API (CRUD, transfers, history) independent of Hibernate DDL generation.
  */
 @TestPropertySource(properties = {
 		"spring.jpa.hibernate.ddl-auto=none",
