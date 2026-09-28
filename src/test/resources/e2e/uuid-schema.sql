@@ -5,3 +5,7 @@ create table contact (contact_id uuid not null, email_id varchar(255), home_phon
 create table customer (cust_id uuid not null, create_date_time time, customer_number bigint, first_name varchar(255), last_name varchar(255), middle_name varchar(255), status varchar(255), update_date_time time, contact_details_contact_id uuid, customer_address_addr_id uuid, primary key (cust_id));
 create table customer_accountxref (cust_acc_xref_id uuid not null, account_number bigint, customer_number bigint, primary key (cust_acc_xref_id));
 create table transaction (tx_id uuid not null, account_number bigint, tx_amount double, tx_date_time time, tx_type varchar(255), primary key (tx_id));
+alter table account add constraint FKau908n3yo0tq3jcip43k6l7r6 foreign key (bank_information_bank_id) references bank_info;
+alter table bank_info add constraint FKwe487nayxdkv22opjibql2mi foreign key (branch_address_addr_id) references address;
+alter table customer add constraint FKe9w46eewuqabfx5m8rxa6bygo foreign key (contact_details_contact_id) references contact;
+alter table customer add constraint FKf1ofd7lbom7qafm7esc6ke4hg foreign key (customer_address_addr_id) references address;
