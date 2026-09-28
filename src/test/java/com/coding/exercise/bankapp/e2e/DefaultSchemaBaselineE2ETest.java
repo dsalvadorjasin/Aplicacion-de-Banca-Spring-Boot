@@ -8,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,25 +16,20 @@ import org.springframework.http.ResponseEntity;
  * Pins the behavior of the application exactly as configured in production
  * (Hibernate-generated schema, H2 in-memory database).
  *
- * <p>Hibernate 5.6 maps the {@code UUID} entity ids to {@code binary(255)} columns. H2 2.x treats
- * {@code BINARY(n)} as fixed length and right-pads the stored 16-byte ids, so loading an entity
- * by its id (every eager association such as Customer.contactDetails or Account.bankInformation)
- * fails with {@code EntityNotFoundException}. Every endpoint that reads a stored customer or
- * account therefore returns 500. Writes that do not read back succeed.
- *
- * <p>Tests tagged {@code h2-binary-uuid-defect} are expected to change if the persistence stack
- * (Hibernate/H2 versions or id mapping) changes; they document the current defect, not the
- * intended contract. The intended contract is covered by the {@link UuidSchemaE2ETestSupport} tests.
+ * <p>Hibernate 6 maps the {@code UUID} entity ids to native H2 {@code uuid} columns, so the
+ * generated schema matches the one used by the {@link UuidSchemaE2ETestSupport} tests and stored
+ * customers and accounts can be read back. (Hibernate 5.6 generated {@code binary(255)} columns,
+ * which H2 2.x right-padded, making every read of a stored entity fail with 500.)
  */
 class DefaultSchemaBaselineE2ETest extends E2ETestSupport {
 
 	@Test
-	void idColumnsAreGeneratedAsFixedLengthBinary() {
+	void idColumnsAreGeneratedAsNativeUuid() {
 		String type = jdbcTemplate.queryForObject(
 				"SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CUSTOMER' AND COLUMN_NAME = 'CUST_ID'",
 				String.class);
 
-		assertThat(type).isEqualTo("BINARY");
+		assertThat(type).isEqualTo("UUID");
 	}
 
 	@Test
@@ -47,7 +41,6 @@ class DefaultSchemaBaselineE2ETest extends E2ETestSupport {
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
 	void createCustomerReturns201AndPersistsRow() {
 		assertCreated(postJson("/customers/add", customerPayload(uniqueNumber(), "John", "Doe")),
 				"New Customer created successfully.");
@@ -58,70 +51,71 @@ class DefaultSchemaBaselineE2ETest extends E2ETestSupport {
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
-	void getCreatedCustomerReturns500() {
+	void getCreatedCustomerReturnsCustomerDetails() {
 		long customerNumber = uniqueNumber();
 		createCustomer(customerNumber);
 
-		String path = "/customers/" + customerNumber;
-		assertServerError(get(path), CONTEXT_PATH + path);
+		ResponseEntity<String> response = get("/customers/" + customerNumber);
+
+		assertThat(response.getStatusCode().value()).isEqualTo(200);
+		assertThat(json(response).get("customerNumber").asLong()).isEqualTo(customerNumber);
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
-	void getAllCustomersReturns500OnceAnyCustomerExists() {
-		createCustomer(uniqueNumber());
-
-		assertServerError(get("/customers/all"), CONTEXT_PATH + "/customers/all");
-	}
-
-	@Test
-	@Tag("h2-binary-uuid-defect")
-	void updateExistingCustomerReturns500() {
+	void getAllCustomersReturnsCreatedCustomer() {
 		long customerNumber = uniqueNumber();
 		createCustomer(customerNumber);
 
-		String path = "/customers/" + customerNumber;
-		assertServerError(putJson(path, customerPayload(customerNumber, "Roger", "Federer")), CONTEXT_PATH + path);
+		ResponseEntity<String> response = get("/customers/all");
+
+		assertThat(response.getStatusCode().value()).isEqualTo(200);
+		assertThat(json(response)).hasSize(1);
+		assertThat(json(response).get(0).get("customerNumber").asLong()).isEqualTo(customerNumber);
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
-	void deleteExistingCustomerReturns500AndKeepsRow() {
+	void updateExistingCustomerReturns200() {
 		long customerNumber = uniqueNumber();
 		createCustomer(customerNumber);
 
-		String path = "/customers/" + customerNumber;
-		assertServerError(delete(path), CONTEXT_PATH + path);
-		assertThat(rowCount("customer")).isEqualTo(1);
+		assertStatusAndBody(putJson("/customers/" + customerNumber, customerPayload(customerNumber, "Roger", "Federer")),
+				HttpStatus.OK, "Success: Customer updated.");
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
-	void createAccountForExistingCustomerReturns500AndPersistsNothing() {
+	void deleteExistingCustomerReturns200AndRemovesRow() {
+		long customerNumber = uniqueNumber();
+		createCustomer(customerNumber);
+
+		assertStatusAndBody(delete("/customers/" + customerNumber), HttpStatus.OK, "Success: Customer deleted.");
+		assertThat(rowCount("customer")).isZero();
+	}
+
+	@Test
+	void createAccountForExistingCustomerReturns201AndPersistsAccount() {
 		long customerNumber = uniqueNumber();
 		long accountNumber = uniqueNumber();
 		createCustomer(customerNumber);
 
-		String path = "/accounts/add/" + customerNumber;
-		assertServerError(postJson(path, accountPayload(accountNumber, 100.0, "Checking")), CONTEXT_PATH + path);
-		assertThat(rowCount("account")).isZero();
-		assertStatusAndBody(get("/accounts/" + accountNumber), HttpStatus.NOT_FOUND,
-				"Account Number " + accountNumber + " not found.");
+		assertCreated(postJson("/accounts/add/" + customerNumber, accountPayload(accountNumber, 100.0, "Checking")),
+				"New Account created successfully.");
+		assertThat(rowCount("account")).isEqualTo(1);
+		ResponseEntity<String> account = get("/accounts/" + accountNumber);
+		assertThat(account.getStatusCode().value()).isEqualTo(HttpStatus.FOUND.value());
+		assertThat(json(account).get("accountNumber").asLong()).isEqualTo(accountNumber);
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
-	void transferForExistingCustomerReturns500() {
+	void transferFromUnknownAccountOfExistingCustomerReturns404() {
 		long customerNumber = uniqueNumber();
+		long fromAccountNumber = uniqueNumber();
 		createCustomer(customerNumber);
 
-		String path = "/accounts/transfer/" + customerNumber;
-		assertServerError(putJson(path, transferPayload(uniqueNumber(), uniqueNumber(), 1.0)), CONTEXT_PATH + path);
+		assertStatusAndBody(putJson("/accounts/transfer/" + customerNumber, transferPayload(fromAccountNumber, uniqueNumber(), 1.0)),
+				HttpStatus.NOT_FOUND, "From Account Number " + fromAccountNumber + " not found.");
 	}
 
 	@Test
-	@Tag("h2-binary-uuid-defect")
 	void duplicateCustomerIsAccepted() {
 		long customerNumber = uniqueNumber();
 		createCustomer(customerNumber);

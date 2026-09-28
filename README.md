@@ -1,4 +1,4 @@
-# Banking Application using Java 11, Spring Boot, Spring Security and H2 DB
+# Banking Application using Java 17, Spring Boot, Spring Security and H2 DB
 
 RESTful API to simulate simple banking operations. 
 
@@ -38,7 +38,7 @@ https://projectlombok.org/setup/eclipse
 
 ### Prerequisites
 
-* Java 11 (LTS) - OpenJDK 11 or later
+* Java 17 (LTS) - OpenJDK 17 or later
 * Spring Tool Suite 4 or similar IDE
 * [Maven](https://maven.apache.org/) - Dependency Management
 
@@ -86,7 +86,7 @@ http://localhost:8989/bank-api/h2-console/
 
 ## Migration Notes
 
-This application has been migrated from Java 8 to Java 11 (LTS). See `MIGRATION_NOTES.md` for detailed information about the migration process and changes made.
+This application has been migrated from Java 8 to Java 11 (LTS), and then to Java 17 (LTS) with Spring Boot 3.3. See `MIGRATION_NOTES.md` for detailed information about the migration process and changes made.
 
 ## Authors
 
