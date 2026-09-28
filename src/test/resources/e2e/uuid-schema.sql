@@ -1,0 +1,7 @@
+create table account (acct_id uuid not null, account_balance double, account_number bigint, account_status varchar(255), account_type varchar(255), create_date_time time, update_date_time time, bank_information_bank_id uuid, primary key (acct_id));
+create table address (addr_id uuid not null, address1 varchar(255), address2 varchar(255), city varchar(255), country varchar(255), state varchar(255), zip varchar(255), primary key (addr_id));
+create table bank_info (bank_id uuid not null, branch_code integer, branch_name varchar(255), routing_number integer, branch_address_addr_id uuid, primary key (bank_id));
+create table contact (contact_id uuid not null, email_id varchar(255), home_phone varchar(255), work_phone varchar(255), primary key (contact_id));
+create table customer (cust_id uuid not null, create_date_time time, customer_number bigint, first_name varchar(255), last_name varchar(255), middle_name varchar(255), status varchar(255), update_date_time time, contact_details_contact_id uuid, customer_address_addr_id uuid, primary key (cust_id));
+create table customer_accountxref (cust_acc_xref_id uuid not null, account_number bigint, customer_number bigint, primary key (cust_acc_xref_id));
+create table transaction (tx_id uuid not null, account_number bigint, tx_amount double, tx_date_time time, tx_type varchar(255), primary key (tx_id));
