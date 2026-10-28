@@ -16,6 +16,7 @@ import com.coding.exercise.bankapp.v2.NotFoundException;
 final class CustomerWritesAdapter {
 
 	private final BankingServiceImpl bankingService;
+	private final Object createLock = new Object();
 
 	CustomerWritesAdapter(BankingServiceImpl bankingService) {
 		this.bankingService = bankingService;
@@ -27,11 +28,14 @@ final class CustomerWritesAdapter {
 		}
 		requireWritable(customer);
 		Long customerNumber = customer.getCustomerNumber();
-		if (find(customerNumber).isPresent()) {
-			throw new ConflictException("Customer " + customerNumber + " already exists");
+		synchronized (createLock) {
+			// This serializes V2 creates in this adapter instance; V1 writers can still store duplicates.
+			if (find(customerNumber).isPresent()) {
+				throw new ConflictException("Customer " + customerNumber + " already exists");
+			}
+			expectStatus(bankingService.addCustomer(customer), 201);
 		}
 
-		expectStatus(bankingService.addCustomer(customer), 201);
 		return find(customerNumber)
 				.orElseThrow(() -> new IllegalStateException("Created customer " + customerNumber + " was not found"));
 	}

@@ -2,8 +2,14 @@ package com.coding.exercise.bankapp.v2.customerwrites;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,6 +87,55 @@ class AddCustomerV2Test extends CustomerWritesTestSupport {
 		ResponseEntity<String> duplicateV1 = postJson("/customers/add", payload);
 		assertThat(duplicateV1.getStatusCode().value()).isEqualTo(201);
 		assertThat(rowCount("customer")).isEqualTo(2);
+	}
+
+	@Test
+	void concurrentCreatesWithSameNumberStoreOneCustomer() throws Exception {
+		int threadCount = 8;
+		long customerNumber = uniqueNumber();
+		Map<String, Object> payload = customerPayload(customerNumber, "John", "Doe");
+		CountDownLatch ready = new CountDownLatch(threadCount);
+		CountDownLatch start = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+		try {
+			List<Future<ResponseEntity<String>>> responses = new ArrayList<>();
+			for (int i = 0; i < threadCount; i++) {
+				responses.add(executor.submit(() -> {
+					ready.countDown();
+					if (!start.await(30, TimeUnit.SECONDS)) {
+						throw new IllegalStateException("Timed out waiting to start concurrent customer create");
+					}
+					return postJson("/v2/customers/add", payload);
+				}));
+			}
+
+			assertThat(ready.await(30, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+			int createdCount = 0;
+			int conflictCount = 0;
+			for (Future<ResponseEntity<String>> future : responses) {
+				ResponseEntity<String> response = future.get(30, TimeUnit.SECONDS);
+				if (response.getStatusCode().value() == 201) {
+					spec("customer-writes").assertValid(HttpMethod.POST, "/v2/customers/add",
+							requestJson(payload), response);
+					createdCount++;
+				} else {
+					assertResponseConformsToSpec(HttpMethod.POST, "/v2/customers/add",
+							requestJson(payload), response);
+					assertProblem(response, 409);
+					conflictCount++;
+				}
+			}
+
+			assertThat(createdCount).isEqualTo(1);
+			assertThat(conflictCount).isEqualTo(threadCount - 1);
+			assertThat(jdbcTemplate.queryForObject(
+					"SELECT COUNT(*) FROM customer WHERE customer_number = ?", Integer.class, customerNumber))
+					.isEqualTo(1);
+		} finally {
+			start.countDown();
+			executor.shutdownNow();
+		}
 	}
 
 	@ParameterizedTest
