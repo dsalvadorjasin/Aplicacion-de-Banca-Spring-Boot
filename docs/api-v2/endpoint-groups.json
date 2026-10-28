@@ -1,0 +1,74 @@
+{
+  "groups": [
+    {
+      "id": "customer-reads",
+      "title": "Customer reads",
+      "endpoints": [
+        "GET /customers/all",
+        "GET /customers/{customerNumber}"
+      ],
+      "v2_endpoints": [
+        "GET /v2/customers/all",
+        "GET /v2/customers/{customerNumber}"
+      ],
+      "owned_paths": [
+        "src/main/java/com/coding/exercise/bankapp/v2/customerreads/",
+        "src/main/resources/openapi/v2/customer-reads.yaml",
+        "src/test/java/com/coding/exercise/bankapp/v2/customerreads/"
+      ]
+    },
+    {
+      "id": "customer-writes",
+      "title": "Customer writes",
+      "endpoints": [
+        "POST /customers/add",
+        "PUT /customers/{customerNumber}",
+        "DELETE /customers/{customerNumber}"
+      ],
+      "v2_endpoints": [
+        "POST /v2/customers/add",
+        "PUT /v2/customers/{customerNumber}",
+        "DELETE /v2/customers/{customerNumber}"
+      ],
+      "owned_paths": [
+        "src/main/java/com/coding/exercise/bankapp/v2/customerwrites/",
+        "src/main/resources/openapi/v2/customer-writes.yaml",
+        "src/test/java/com/coding/exercise/bankapp/v2/customerwrites/"
+      ]
+    },
+    {
+      "id": "accounts",
+      "title": "Accounts",
+      "endpoints": [
+        "GET /accounts/{accountNumber}",
+        "POST /accounts/add/{customerNumber}"
+      ],
+      "v2_endpoints": [
+        "GET /v2/accounts/{accountNumber}",
+        "POST /v2/accounts/add/{customerNumber}"
+      ],
+      "owned_paths": [
+        "src/main/java/com/coding/exercise/bankapp/v2/accounts/",
+        "src/main/resources/openapi/v2/accounts.yaml",
+        "src/test/java/com/coding/exercise/bankapp/v2/accounts/"
+      ]
+    },
+    {
+      "id": "money-movement",
+      "title": "Money movement",
+      "endpoints": [
+        "PUT /accounts/transfer/{customerNumber}",
+        "GET /accounts/transactions/{accountNumber}"
+      ],
+      "v2_endpoints": [
+        "PUT /v2/accounts/transfer/{customerNumber}",
+        "GET /v2/accounts/transactions/{accountNumber}"
+      ],
+      "owned_paths": [
+        "src/main/java/com/coding/exercise/bankapp/v2/moneymovement/",
+        "src/main/resources/openapi/v2/money-movement.yaml",
+        "src/test/java/com/coding/exercise/bankapp/v2/moneymovement/"
+      ]
+    }
+  ]
+}

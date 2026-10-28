@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: API V2 Accounts
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /v2/accounts/{accountNumber}:
+    get:
+      operationId: getAccount
+      summary: Get account details
+      x-v1-differences:
+        - A found account returns 200 OK instead of V1's 302 Found.
+        - A missing account returns 404 with an application/problem+json ProblemDetail instead of V1's 404 plain-text message.
+        - A non-numeric account number returns 400 ProblemDetail instead of V1's Spring Boot error JSON.
+        - Duplicate stored account numbers return 409 ProblemDetail instead of V1's 500 error.
+        - An account whose stored balance is not a finite number (e.g. created through V1 with 1e309) returns 409 ProblemDetail instead of V1's 302 with a non-numeric accountBalance.
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Account found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          description: Invalid account number
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Account not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Duplicate or invalid stored account data
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+  /v2/accounts/add/{customerNumber}:
+    post:
+      operationId: addAccount
+      summary: Create an account for a customer
+      x-v1-differences:
+        - Success returns 201 with an absolute Location header (/v2/accounts/{accountNumber}) and the created account as JSON instead of V1's 201 plain-text message without Location.
+        - A missing customer returns 404 ProblemDetail and creates nothing instead of V1's 201 success message (V1 also creates nothing).
+        - An account number that already exists returns 409 ProblemDetail and creates nothing; V1 creates a duplicate account.
+        - Duplicate stored customer numbers return 409 ProblemDetail instead of V1's 500 error, and nothing is created.
+        - A body without accountNumber, bankInformation or bankInformation.branchAddress returns 400 ProblemDetail and creates nothing; V1 returns 500 for a missing bankInformation or branchAddress and 201 (saving an account with no number) for a missing accountNumber.
+        - A non-finite accountBalance (e.g. 1e309, which parses as Infinity) returns 400 ProblemDetail and creates nothing; V1 saves the account with an infinite balance.
+        - Malformed JSON, wrong JSON types, an unsupported Content-Type (415) or a non-numeric customer number return ProblemDetail instead of V1's Spring Boot error JSON.
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewAccount"
+      responses:
+        "201":
+          description: Account created
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          description: Invalid account request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Account already exists or duplicate customer records
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "415":
+          description: Unsupported content type
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    AddressDetails:
+      type: object
+      properties:
+        address1:
+          type: string
+          nullable: true
+        address2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        zip:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+    BankInformation:
+      type: object
+      properties:
+        branchName:
+          type: string
+          nullable: true
+        branchCode:
+          type: integer
+          format: int32
+          nullable: true
+        branchAddress:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/AddressDetails"
+          nullable: true
+        routingNumber:
+          type: integer
+          format: int32
+          nullable: true
+    NewAccountBankInformation:
+      type: object
+      required:
+        - branchAddress
+      properties:
+        branchName:
+          type: string
+          nullable: true
+        branchCode:
+          type: integer
+          format: int32
+          nullable: true
+        branchAddress:
+          $ref: "#/components/schemas/AddressDetails"
+        routingNumber:
+          type: integer
+          format: int32
+          nullable: true
+    Account:
+      type: object
+      required:
+        - accountNumber
+        - bankInformation
+        - accountStatus
+        - accountType
+        - accountBalance
+        - accountCreated
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+        bankInformation:
+          $ref: "#/components/schemas/BankInformation"
+        accountStatus:
+          type: string
+          nullable: true
+        accountType:
+          type: string
+          nullable: true
+        accountBalance:
+          type: number
+          format: double
+          nullable: true
+        accountCreated:
+          type: string
+          format: date-time
+          nullable: true
+    NewAccount:
+      type: object
+      required:
+        - accountNumber
+        - bankInformation
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+        bankInformation:
+          $ref: "#/components/schemas/NewAccountBankInformation"
+        accountStatus:
+          type: string
+          nullable: true
+        accountType:
+          type: string
+          nullable: true
+        accountBalance:
+          type: number
+          format: double
+          nullable: true
+        accountCreated:
+          type: string
+          format: date-time
+          nullable: true
+          description: Accepted for compatibility with V1 and ignored on creation.
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference

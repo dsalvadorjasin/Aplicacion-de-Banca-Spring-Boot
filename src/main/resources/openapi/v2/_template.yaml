@@ -1,0 +1,110 @@
+openapi: 3.0.3
+info:
+  title: API V2 Thing example
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/things/{thingNumber}:
+    get:
+      operationId: getThing
+      summary: Get a thing by its number
+      x-v1-differences:
+        - Missing things use an RFC 9457 problem response instead of V1's response shape.
+      parameters:
+        - name: thingNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Thing found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thing"
+        "400":
+          description: Invalid thing number
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Thing not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+  /v2/things:
+    post:
+      operationId: createThing
+      summary: Create a thing
+      x-v1-differences:
+        - Creates return the created Thing and an absolute Location header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Thing"
+      responses:
+        "201":
+          description: Thing created
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thing"
+        "400":
+          description: Invalid thing
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Thing already exists
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    Thing:
+      type: object
+      required:
+        - thingNumber
+        - name
+      properties:
+        thingNumber:
+          type: integer
+          format: int64
+        name:
+          type: string
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
