@@ -135,6 +135,8 @@ class UpdateCustomerV2Test extends CustomerWritesTestSupport {
 		spec("customer-writes").assertValid(HttpMethod.PUT, "/v2/customers/" + customerNumber,
 				requestJson(v2Payload), v2);
 		assertProblem(v2, 409);
+		assertThat(jdbcTemplate.queryForList("SELECT first_name FROM customer", String.class))
+				.containsExactlyInAnyOrder("John", "John");
 
 		ResponseEntity<String> v1 = putJson("/customers/" + customerNumber,
 				updatePayload(customerNumber));
@@ -152,6 +154,18 @@ class UpdateCustomerV2Test extends CustomerWritesTestSupport {
 		assertProblem(missingV2, 400);
 		assertV1DefaultErrorJson(exchangeJson(HttpMethod.PUT, "/customers/" + customerNumber, null), 400);
 
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		String malformedBody = "{not-json";
+		ResponseEntity<String> malformedV2 = rest.exchange("/v2/customers/" + customerNumber, HttpMethod.PUT,
+				new HttpEntity<>(malformedBody, headers), String.class);
+		assertResponseConformsToSpec(HttpMethod.PUT, "/v2/customers/" + customerNumber,
+				malformedBody, malformedV2);
+		assertProblem(malformedV2, 400);
+		ResponseEntity<String> malformedV1 = rest.exchange("/customers/" + customerNumber, HttpMethod.PUT,
+				new HttpEntity<>(malformedBody, headers), String.class);
+		assertV1DefaultErrorJson(malformedV1, 400);
+
 		String invalidPath = "/v2/customers/abc";
 		ResponseEntity<String> nonNumericV2 = putJson(invalidPath, validPayload);
 		assertResponseConformsToSpec(HttpMethod.PUT, invalidPath, requestJson(validPayload), nonNumericV2);
@@ -167,12 +181,7 @@ class UpdateCustomerV2Test extends CustomerWritesTestSupport {
 		assertProblem(v2, 415);
 
 		ResponseEntity<String> v1 = exchangeText(HttpMethod.PUT, "/customers/" + customerNumber, "not json");
-		assertThat(v1.getStatusCode().value()).isEqualTo(415);
-		if (v1.getBody() != null && !v1.getBody().isBlank()) {
-			MediaType contentType = v1.getHeaders().getContentType();
-			assertThat(contentType).isNotNull();
-			assertThat(contentType.isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)).isFalse();
-		}
+		assertV1DefaultErrorJson(v1, 415);
 	}
 
 	private Map<String, Object> updatePayload(long bodyCustomerNumber) {

@@ -144,11 +144,6 @@ class AddCustomerV2Test extends CustomerWritesTestSupport {
 		assertProblem(v2, 415);
 
 		ResponseEntity<String> v1 = exchangeText(HttpMethod.POST, "/customers/add", "not json");
-		assertThat(v1.getStatusCode().value()).isEqualTo(415);
-		if (v1.getBody() != null && !v1.getBody().isBlank()) {
-			MediaType contentType = v1.getHeaders().getContentType();
-			assertThat(contentType).isNotNull();
-			assertThat(contentType.isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)).isFalse();
-		}
+		assertV1DefaultErrorJson(v1, 415);
 	}
 }
