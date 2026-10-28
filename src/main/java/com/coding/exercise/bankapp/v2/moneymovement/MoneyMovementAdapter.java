@@ -26,7 +26,7 @@ public class MoneyMovementAdapter {
 
 	public CompletedTransfer transfer(Long customerNumber, TransferDetails transfer) {
 		if (transfer == null || transfer.getFromAccountNumber() == null || transfer.getToAccountNumber() == null
-				|| transfer.getTransferAmount() == null
+				|| transfer.getTransferAmount() == null || !Double.isFinite(transfer.getTransferAmount())
 				|| transfer.getTransferAmount() <= 0) {
 			throw new BadRequestException("Account numbers and a positive transferAmount are required.");
 		}

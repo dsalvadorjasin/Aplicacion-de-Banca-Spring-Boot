@@ -43,7 +43,7 @@ paths:
         - "Successful transfers return a JSON description instead of V1's plain-text success message."
         - "Insufficient funds returns 422 instead of V1's 400."
         - "Missing or null account fields return 400 instead of V1's 404; missing or null transferAmount returns 400 instead of V1's 500."
-        - "Zero and negative transfer amounts return 400 instead of V1's 200 and do not change balances or create transactions."
+        - "Zero, negative, and non-finite transfer amounts return 400 without changing balances or creating transactions; V1 accepts zero, negative, NaN, and negative infinity with 200, while positive infinity returns 400 for insufficient funds."
         - "Errors use application/problem+json ProblemDetail instead of V1's plain text or default JSON."
   /v2/accounts/transactions/{accountNumber}:
     get:
@@ -120,6 +120,7 @@ components:
         transferAmount:
           type: number
           format: double
+          description: A finite, strictly positive amount; NaN and infinities are rejected
           minimum: 0
           exclusiveMinimum: true
     CompletedTransfer:

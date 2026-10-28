@@ -16,6 +16,23 @@ import com.coding.exercise.bankapp.v2.support.JsonComparison;
 class MoneyMovementApiTest extends MoneyMovementTestSupport {
 
 	@Test
+	void nonFiniteAmountsAreRejectedWithoutSideEffects() {
+		long customer = customer();
+		long from = account(customer, 100);
+		long to = account(customer, 50);
+		String path = "/v2/accounts/transfer/" + customer;
+		for (String amount : List.of("NaN", "Infinity", "-Infinity")) {
+			Map<String, Object> body = new LinkedHashMap<>(transferPayload(from, to, 10));
+			body.put("transferAmount", amount);
+			problem(HttpMethod.PUT, path, body, putJson(path, body), 400, null);
+			assertThat(balance(from)).isEqualTo(100);
+			assertThat(balance(to)).isEqualTo(50);
+			assertThat(json(history(from))).isEmpty();
+			assertThat(json(history(to))).isEmpty();
+		}
+	}
+
+	@Test
 	void publishesV2OperationsOnlyInTheVersionedDocument() {
 		var rootPaths = json(get("/v3/api-docs")).get("paths");
 		var v2Paths = json(get("/v3/api-docs/v2")).get("paths");

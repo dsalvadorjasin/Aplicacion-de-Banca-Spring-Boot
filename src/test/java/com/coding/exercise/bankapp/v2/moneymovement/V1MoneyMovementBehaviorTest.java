@@ -12,6 +12,39 @@ import org.springframework.http.ResponseEntity;
 class V1MoneyMovementBehaviorTest extends MoneyMovementTestSupport {
 
 	@Test
+	void pinsNonFiniteAmounts() {
+		long customer = customer();
+		for (String amount : new String[] { "NaN", "Infinity", "-Infinity" }) {
+			long from = account(customer, 100);
+			long to = account(customer, 50);
+			Map<String, Object> body = new LinkedHashMap<>(transferPayload(from, to, 10));
+			body.put("transferAmount", amount);
+			ResponseEntity<String> response = putJson("/accounts/transfer/" + customer, body);
+			if (amount.equals("Infinity")) {
+				plain(response, 400, "Insufficient Funds.");
+				assertThat(balance(from)).isEqualTo(100);
+				assertThat(balance(to)).isEqualTo(50);
+				assertThat(json(get("/accounts/transactions/" + from))).isEmpty();
+				assertThat(json(get("/accounts/transactions/" + to))).isEmpty();
+			} else {
+				plain(response, 200, "Success: Amount transferred for Customer Number " + customer);
+				if (amount.equals("NaN")) {
+					assertThat(balance(from)).isNaN();
+					assertThat(balance(to)).isNaN();
+				} else {
+					assertThat(balance(from)).isEqualTo(Double.POSITIVE_INFINITY);
+					assertThat(balance(to)).isEqualTo(Double.NEGATIVE_INFINITY);
+				}
+				for (long account : new long[] { from, to }) {
+					var history = json(get("/accounts/transactions/" + account));
+					assertThat(history).hasSize(1);
+					assertThat(history.get(0).get("txAmount").asText()).isEqualTo(amount);
+				}
+			}
+		}
+	}
+
+	@Test
 	void pinsSuccessAndNonPositiveAmounts() {
 		long customer = customer();
 		long from = account(customer, 100);
