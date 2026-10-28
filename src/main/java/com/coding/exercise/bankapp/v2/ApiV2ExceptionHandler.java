@@ -50,11 +50,13 @@ public class ApiV2ExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> createResponseEntity(
             Object body, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        HttpHeaders responseHeaders = new HttpHeaders();
+        responseHeaders.putAll(headers);
         if (body instanceof ProblemDetail problem) {
             setInstance(problem, request);
-            headers.setContentType(MediaType.APPLICATION_PROBLEM_JSON);
+            responseHeaders.setContentType(MediaType.APPLICATION_PROBLEM_JSON);
         }
-        return super.createResponseEntity(body, headers, status, request);
+        return super.createResponseEntity(body, responseHeaders, status, request);
     }
 
     private ResponseEntity<Object> problem(HttpStatus status, String detail, HttpServletRequest request) {

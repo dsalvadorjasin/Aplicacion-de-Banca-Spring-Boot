@@ -60,6 +60,32 @@ class ApiV2ExceptionHandlerTest {
     }
 
     @Test
+    void unmatchedV2RequestsUseProblemDetailsAndV1RequestsKeepLegacyErrors() throws Exception {
+        ResponseEntity<String> missingV2 = get("/v2/does-not-exist");
+        assertProblem(missingV2, 404, "Not Found", null);
+        assertThat(mapper.readTree(missingV2.getBody()).get("instance").asText())
+                .isEqualTo("/bank-api/v2/does-not-exist");
+
+        ResponseEntity<String> v2Root = get("/v2");
+        assertProblem(v2Root, 404, "Not Found", null);
+
+        ResponseEntity<String> wrongV2Method = http.exchange(
+                "/v2/__probe/not-found", HttpMethod.DELETE, HttpEntity.EMPTY, String.class);
+        assertProblem(wrongV2Method, 405, "Method Not Allowed", null);
+        assertThat(wrongV2Method.getHeaders().getFirst(HttpHeaders.ALLOW)).contains("GET");
+
+        ResponseEntity<String> missingV1 = get("/does-not-exist");
+        assertLegacyError(missingV1, 404);
+        ResponseEntity<String> wrongV1Method = http.exchange(
+                "/accounts/transactions/1000", HttpMethod.DELETE, HttpEntity.EMPTY, String.class);
+        assertLegacyError(wrongV1Method, 405);
+        assertLegacyError(http.exchange(
+                "/customers/all", HttpMethod.DELETE, HttpEntity.EMPTY, String.class), 400);
+
+        assertSecurityHeaders(missingV2, missingV1);
+    }
+
+    @Test
     void v1ErrorsKeepTheirExistingShapeAndSecurityHeadersStayConsistent() throws Exception {
         ResponseEntity<String> v1 = get("/customers/abc");
         assertThat(v1.getStatusCode().value()).isEqualTo(400);
@@ -70,6 +96,26 @@ class ApiV2ExceptionHandlerTest {
         assertThat(v1Body.hasNonNull("timestamp")).isTrue();
 
         ResponseEntity<String> v2 = get("/v2/__probe/not-found");
+        assertThat(v2.getHeaders().getFirst("X-XSS-Protection"))
+                .isEqualTo(v1.getHeaders().getFirst("X-XSS-Protection"))
+                .isEqualTo("1; mode=block");
+        assertThat(v2.getHeaders().getFirst("X-Content-Type-Options"))
+                .isEqualTo(v1.getHeaders().getFirst("X-Content-Type-Options"))
+                .isEqualTo("nosniff");
+        assertThat(v2.getHeaders().getFirst("X-Frame-Options")).isNull();
+        assertThat(v2.getHeaders().getFirst("WWW-Authenticate")).isNull();
+    }
+
+    private void assertLegacyError(ResponseEntity<String> response, int status) throws Exception {
+        assertThat(response.getStatusCode().value()).isEqualTo(status);
+        assertThat(response.getHeaders().getContentType()).isNotEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+        JsonNode body = mapper.readTree(response.getBody());
+        assertThat(body.hasNonNull("error")).isTrue();
+        assertThat(body.hasNonNull("path")).isTrue();
+        assertThat(body.hasNonNull("timestamp")).isTrue();
+    }
+
+    private void assertSecurityHeaders(ResponseEntity<String> v2, ResponseEntity<String> v1) {
         assertThat(v2.getHeaders().getFirst("X-XSS-Protection"))
                 .isEqualTo(v1.getHeaders().getFirst("X-XSS-Protection"))
                 .isEqualTo("1; mode=block");
