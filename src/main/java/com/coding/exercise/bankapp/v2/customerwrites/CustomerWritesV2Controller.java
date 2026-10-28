@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.coding.exercise.bankapp.domain.AddressDetails;
+import com.coding.exercise.bankapp.domain.ContactDetails;
 import com.coding.exercise.bankapp.domain.CustomerDetails;
 import com.coding.exercise.bankapp.v2.ApiV2;
 import com.coding.exercise.bankapp.v2.ApiV2BadRequestException;
@@ -20,6 +22,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping(ApiV2.BASE_PATH + "/customers")
 @Tag(name = "Customer V2 write endpoints")
 public class CustomerWritesV2Controller {
+
+    static final int MAX_TEXT_LENGTH = 255;
 
     private final CustomerWritesV2Service customerWrites;
 
@@ -61,6 +65,27 @@ public class CustomerWritesV2Controller {
         }
         if (customer.getContactDetails() == null) {
             throw new ApiV2BadRequestException("contactDetails is required.");
+        }
+        AddressDetails address = customer.getCustomerAddress();
+        ContactDetails contact = customer.getContactDetails();
+        requireMaxLength("firstName", customer.getFirstName());
+        requireMaxLength("middleName", customer.getMiddleName());
+        requireMaxLength("lastName", customer.getLastName());
+        requireMaxLength("status", customer.getStatus());
+        requireMaxLength("customerAddress.address1", address.getAddress1());
+        requireMaxLength("customerAddress.address2", address.getAddress2());
+        requireMaxLength("customerAddress.city", address.getCity());
+        requireMaxLength("customerAddress.state", address.getState());
+        requireMaxLength("customerAddress.zip", address.getZip());
+        requireMaxLength("customerAddress.country", address.getCountry());
+        requireMaxLength("contactDetails.emailId", contact.getEmailId());
+        requireMaxLength("contactDetails.homePhone", contact.getHomePhone());
+        requireMaxLength("contactDetails.workPhone", contact.getWorkPhone());
+    }
+
+    private static void requireMaxLength(String field, String value) {
+        if (value != null && value.length() > MAX_TEXT_LENGTH) {
+            throw new ApiV2BadRequestException(field + " must be at most " + MAX_TEXT_LENGTH + " characters.");
         }
     }
 }

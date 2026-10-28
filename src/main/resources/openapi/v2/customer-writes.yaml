@@ -23,6 +23,7 @@ paths:
         - "A customerNumber that is already stored returns 409 ProblemDetail and creates nothing; V1 accepts the duplicate with 201."
         - "A missing customerNumber returns 400 ProblemDetail and creates nothing; V1 returns 201 and stores a customer without a number."
         - "A missing customerAddress or contactDetails returns 400 ProblemDetail; V1 returns 500."
+        - "A text field longer than 255 characters (the database column length) returns 400 ProblemDetail and creates nothing; V1 returns 500."
         - "Malformed, wrongly typed or missing bodies and unsupported content types return ProblemDetail (400 / 415, application/problem+json); V1 returns the same status with Spring Boot's default error JSON."
       requestBody:
         required: true
@@ -45,7 +46,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CustomerDetails"
         "400":
-          description: Malformed body or missing required field
+          description: Malformed body, missing required field or text field too long
           content:
             application/problem+json:
               schema:
@@ -81,6 +82,7 @@ paths:
         - "Success returns 200 with the updated customer as JSON; V1 returns 200 with the plain-text body 'Success: Customer updated.'"
         - "A missing customer returns 404 ProblemDetail; V1 returns 404 with a plain-text message."
         - "A missing customerAddress or contactDetails returns 400 ProblemDetail and changes nothing; V1 returns 500."
+        - "A text field longer than 255 characters (the database column length) returns 400 ProblemDetail and changes nothing; V1 returns 500."
         - "When two stored customers share the number, returns 409 ProblemDetail and changes nothing; V1 returns 500."
         - "Malformed bodies, non-numeric customer numbers and unsupported content types return ProblemDetail (400 / 415, application/problem+json); V1 returns the same status with Spring Boot's default error JSON."
       requestBody:
@@ -97,7 +99,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CustomerDetails"
         "400":
-          description: Malformed body, missing required field or invalid customer number
+          description: Malformed body, missing required field, text field too long or invalid customer number
           content:
             application/problem+json:
               schema:
@@ -165,15 +167,19 @@ components:
           format: int64
         firstName:
           type: string
+          maxLength: 255
           nullable: true
         middleName:
           type: string
+          maxLength: 255
           nullable: true
         lastName:
           type: string
+          maxLength: 255
           nullable: true
         status:
           type: string
+          maxLength: 255
           nullable: true
         customerAddress:
           $ref: "#/components/schemas/AddressDetails"
@@ -192,15 +198,19 @@ components:
           description: Ignored, as in V1; the path number identifies the customer.
         firstName:
           type: string
+          maxLength: 255
           nullable: true
         middleName:
           type: string
+          maxLength: 255
           nullable: true
         lastName:
           type: string
+          maxLength: 255
           nullable: true
         status:
           type: string
+          maxLength: 255
           nullable: true
         customerAddress:
           $ref: "#/components/schemas/AddressDetails"
@@ -219,18 +229,22 @@ components:
       properties:
         firstName:
           type: string
+          maxLength: 255
           nullable: true
         lastName:
           type: string
+          maxLength: 255
           nullable: true
         middleName:
           type: string
+          maxLength: 255
           nullable: true
         customerNumber:
           type: integer
           format: int64
         status:
           type: string
+          maxLength: 255
           nullable: true
         customerAddress:
           $ref: "#/components/schemas/AddressDetails"
@@ -241,33 +255,42 @@ components:
       properties:
         address1:
           type: string
+          maxLength: 255
           nullable: true
         address2:
           type: string
+          maxLength: 255
           nullable: true
         city:
           type: string
+          maxLength: 255
           nullable: true
         state:
           type: string
+          maxLength: 255
           nullable: true
         zip:
           type: string
+          maxLength: 255
           nullable: true
         country:
           type: string
+          maxLength: 255
           nullable: true
     ContactDetails:
       type: object
       properties:
         emailId:
           type: string
+          maxLength: 255
           nullable: true
         homePhone:
           type: string
+          maxLength: 255
           nullable: true
         workPhone:
           type: string
+          maxLength: 255
           nullable: true
     ProblemDetail:
       type: object

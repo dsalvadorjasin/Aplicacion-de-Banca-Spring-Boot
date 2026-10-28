@@ -94,6 +94,24 @@ class UpdateCustomerV2Test extends CustomerWritesV2TestSupport {
     }
 
     @Test
+    void textLongerThanTheColumnIsBadRequestInV2AndServerErrorInV1WithoutChanges() throws Exception {
+        long number = nextNumber();
+        createWithV1(number, "Ada");
+        String before = v1GetBody(number);
+        String body = updated(number).replace("Cambridge", "z".repeat(256));
+        String path = "/customers/" + number;
+
+        ResponseEntity<String> v2 = send(HttpMethod.PUT, "/v2" + path, body);
+        ApiV2Comparison.assertJsonEquals(before, v1GetBody(number));
+        ResponseEntity<String> v1 = send(HttpMethod.PUT, path, body);
+
+        assertV2Problem(v2, HttpStatus.BAD_REQUEST, "/v2" + path);
+        assertThat(json(v2).get("detail").asText()).contains("customerAddress.city").contains("255");
+        SPEC.assertValidResponse(HttpMethod.PUT, "/v2" + path, v2);
+        assertV1BootError(v1, HttpStatus.INTERNAL_SERVER_ERROR, path);
+    }
+
+    @Test
     void duplicateStoredNumberIsAConflictInV2AndServerErrorInV1WithoutChanges() throws Exception {
         long number = nextNumber();
         createWithV1(number, "Ada");

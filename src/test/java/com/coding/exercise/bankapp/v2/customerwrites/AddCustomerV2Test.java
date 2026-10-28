@@ -121,6 +121,42 @@ class AddCustomerV2Test extends CustomerWritesV2TestSupport {
     }
 
     @Test
+    void textLongerThanTheColumnIsBadRequestInV2AndServerErrorInV1() throws Exception {
+        String tooLong = "x".repeat(256);
+        for (String[] field : new String[][] {{"lastName", "\"Lovelace\""},
+                {"customerAddress.city", "\"Boston\""},
+                {"contactDetails.emailId", "\"ada@example.test\""}}) {
+            long number = nextNumber();
+            String body = customer(number, "Ada").replace(field[1], "\"" + tooLong + "\"");
+
+            ResponseEntity<String> v1 = send(HttpMethod.POST, V1, body);
+            ResponseEntity<String> v2 = send(HttpMethod.POST, V2, body);
+
+            assertV1BootError(v1, HttpStatus.INTERNAL_SERVER_ERROR, V1);
+            assertV2Problem(v2, HttpStatus.BAD_REQUEST, V2);
+            assertThat(json(v2).get("detail").asText()).contains(field[0]).contains("255");
+            SPEC.assertValidResponse(HttpMethod.POST, V2, v2);
+            assertThat(storedCount(number)).isZero();
+        }
+    }
+
+    @Test
+    void textAtTheColumnLengthIsAcceptedLikeV1() throws Exception {
+        String longest = "y".repeat(255);
+        long v1Number = nextNumber();
+        long v2Number = nextNumber();
+
+        ResponseEntity<String> v1 = send(HttpMethod.POST, V1, customer(v1Number, longest));
+        ResponseEntity<String> v2 = send(HttpMethod.POST, V2, customer(v2Number, longest));
+
+        assertThat(v1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(v2.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        SPEC.assertValid(HttpMethod.POST, V2, customer(v2Number, longest), v2);
+        assertThat(json(v2).get("firstName").asText()).isEqualTo(longest);
+        ApiV2Comparison.assertJsonEquals(v1GetBody(v1Number), v1GetBody(v2Number), "customerNumber");
+    }
+
+    @Test
     void malformedBodiesAreProblemDetailsInV2AndBootErrorsInV1() throws Exception {
         String[] invalid = {"{", "", "[]", "null", "{\"customerNumber\":\"not-a-number\"}",
                 "{\"customerNumber\":99999999999999999999,\"customerAddress\":{},\"contactDetails\":{}}",
