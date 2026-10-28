@@ -1,0 +1,240 @@
+openapi: 3.0.3
+info:
+  title: Accounts V2 API
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/accounts/{accountNumber}:
+    get:
+      operationId: getAccountV2
+      tags: [Accounts]
+      summary: Get account details
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Account found, with the same fields and values as V1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-v1-differences:
+        - Successful reads return 200 instead of V1's 302; the JSON data is unchanged.
+        - Non-positive account numbers return 400 instead of V1's 404 lookup result.
+        - Errors use application/problem+json ProblemDetail instead of V1's plain-text not-found or default error JSON.
+  /v2/accounts/add/{customerNumber}:
+    post:
+      operationId: addAccountV2
+      tags: [Accounts]
+      summary: Create an account for an existing customer
+      description: >-
+        Rejects account numbers already committed when checked. Creation and readback
+        are transactional; a duplicate detected during readback rolls back the V2 write.
+        V2 creates are serialized within one application instance. Global uniqueness
+        across application instances or legacy V1 writers is not guaranteed because
+        the shared storage and V1 duplicate-creation behavior are unchanged.
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountCreate'
+      responses:
+        '201':
+          description: Created account, read back from the existing service
+          headers:
+            Location:
+              description: Context-relative URL of the V2 account
+              required: true
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '406':
+          $ref: '#/components/responses/NotAcceptable'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          description: Unsupported request content type
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-v1-differences:
+        - Creation returns the persisted account as application/json and a V2 Location header instead of V1's plain-text success message without Location; the status remains 201.
+        - Missing customers return 404 instead of V1's 201 success message without creating anything.
+        - Duplicate account numbers return 409 without changing storage instead of V1's 201 that inserts a duplicate and breaks subsequent lookup.
+        - Non-positive identifiers, missing account numbers or balances, negative or non-finite balances, and missing bank information or branch address return 400 instead of V1 accepting invalid values or failing with 500.
+        - Errors use application/problem+json ProblemDetail instead of V1's plain-text messages or default error JSON.
+components:
+  responses:
+    BadRequest:
+      description: Malformed request, invalid identifier or invalid account information
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: Account or customer not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Conflict:
+      description: Account number already exists
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotAcceptable:
+      description: Requested response media type is not supported
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+  schemas:
+    AccountCreate:
+      type: object
+      required: [accountNumber, accountBalance, bankInformation]
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+          minimum: 1
+        accountBalance:
+          type: number
+          format: double
+          minimum: 0
+        accountStatus:
+          type: string
+          nullable: true
+        accountType:
+          type: string
+          nullable: true
+        accountCreated:
+          type: string
+          format: date-time
+          nullable: true
+          description: Accepted for V1 parity but not persisted by the existing service
+        bankInformation:
+          $ref: '#/components/schemas/BankInformation'
+    Account:
+      type: object
+      required: [accountNumber, accountBalance, accountStatus, accountType, accountCreated, bankInformation]
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+        accountBalance:
+          type: number
+          format: double
+          nullable: true
+        accountStatus:
+          type: string
+          nullable: true
+        accountType:
+          type: string
+          nullable: true
+        accountCreated:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null, as in V1; the service does not persist this field
+        bankInformation:
+          $ref: '#/components/schemas/BankInformation'
+      additionalProperties: false
+    BankInformation:
+      type: object
+      required: [branchAddress]
+      properties:
+        branchName:
+          type: string
+          nullable: true
+        branchCode:
+          type: integer
+          format: int32
+          nullable: true
+        routingNumber:
+          type: integer
+          format: int32
+          nullable: true
+        branchAddress:
+          $ref: '#/components/schemas/Address'
+    Address:
+      type: object
+      properties:
+        address1:
+          type: string
+          nullable: true
+        address2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        zip:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+    ProblemDetail:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+      additionalProperties: true
