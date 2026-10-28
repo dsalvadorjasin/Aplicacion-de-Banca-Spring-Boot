@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: API V2 Customer reads
+  version: 2.0.0
+  description: >-
+    V2 read operations for bank customers. They return the same customer data
+    as the V1 `GET /customers/all` and `GET /customers/{customerNumber}`
+    endpoints, with RFC 9457 problem responses for errors.
+servers:
+  - url: /
+paths:
+  /v2/customers/all:
+    get:
+      operationId: getAllCustomersV2
+      summary: Find all customers
+      description: Returns every stored customer, in the same order and with the same fields as V1.
+      x-v1-differences:
+        - A stored customer with no address or contact details is returned with null customerAddress and contactDetails instead of V1's 500 error.
+      responses:
+        "200":
+          description: All customers (possibly an empty list)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+  /v2/customers/{customerNumber}:
+    get:
+      operationId: getCustomerV2
+      summary: Get customer details by customer number
+      x-v1-differences:
+        - A missing customer returns 404 with an application/problem+json ProblemDetail instead of V1's 200 with an empty body.
+        - An invalid customer number (not an integer, or outside the int64 range) returns 400 with an application/problem+json ProblemDetail instead of V1's 400 Spring Boot error JSON (timestamp/status/error/path).
+        - When several stored customers share the customer number, returns 409 with an application/problem+json ProblemDetail instead of V1's 500 error.
+        - A stored customer with no address or contact details is returned with null customerAddress and contactDetails instead of V1's 500 error.
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          description: Invalid customer number
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Several stored customers share this customer number
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    Customer:
+      type: object
+      additionalProperties: false
+      required:
+        - firstName
+        - lastName
+        - middleName
+        - customerNumber
+        - status
+        - customerAddress
+        - contactDetails
+      properties:
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        customerNumber:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        customerAddress:
+          $ref: "#/components/schemas/Address"
+        contactDetails:
+          $ref: "#/components/schemas/Contact"
+    Address:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required:
+        - address1
+        - address2
+        - city
+        - state
+        - zip
+        - country
+      properties:
+        address1:
+          type: string
+          nullable: true
+        address2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        zip:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+    Contact:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required:
+        - emailId
+        - homePhone
+        - workPhone
+      properties:
+        emailId:
+          type: string
+          nullable: true
+        homePhone:
+          type: string
+          nullable: true
+        workPhone:
+          type: string
+          nullable: true
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
