@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Customer reads V2 API
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/customers/all:
+    get:
+      operationId: getAllCustomersV2
+      tags:
+        - Customer reads
+      summary: Find all customers
+      responses:
+        '200':
+          description: Customers found
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerDetails'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences: []
+  /v2/customers/{customerNumber}:
+    get:
+      operationId: getCustomerV2
+      tags:
+        - Customer reads
+      summary: Get customer details
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetails'
+        '400':
+          description: Invalid customer number
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Customer number is not unique
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences:
+        - "A missing customer returns 404 with a ProblemDetail body (application/problem+json) instead of 200 with an empty body."
+        - "A non-numeric or out-of-range customerNumber returns 400 with a ProblemDetail body (application/problem+json) instead of Spring Boot's default error JSON."
+        - "A customerNumber shared by more than one customer returns 409 with a ProblemDetail body (application/problem+json) instead of 500 with Spring Boot's default error JSON."
+components:
+  schemas:
+    CustomerDetails:
+      type: object
+      properties:
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        customerNumber:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        customerAddress:
+          allOf:
+            - $ref: '#/components/schemas/AddressDetails'
+          nullable: true
+        contactDetails:
+          allOf:
+            - $ref: '#/components/schemas/ContactDetails'
+          nullable: true
+      additionalProperties: false
+    AddressDetails:
+      type: object
+      properties:
+        address1:
+          type: string
+          nullable: true
+        address2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        zip:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+      additionalProperties: false
+    ContactDetails:
+      type: object
+      properties:
+        emailId:
+          type: string
+          nullable: true
+        homePhone:
+          type: string
+          nullable: true
+        workPhone:
+          type: string
+          nullable: true
+      additionalProperties: false
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+      additionalProperties: true
