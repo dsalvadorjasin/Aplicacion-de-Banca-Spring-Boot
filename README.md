@@ -67,6 +67,22 @@ http://localhost:8989/bank-api/swagger-ui.html
 
 ```
 
+## API V2
+
+V1 remains available at its existing unversioned paths. V2 uses the same
+resource names under `/bank-api/v2/...`; for example,
+`GET /customers/{customerNumber}` becomes
+`GET /v2/customers/{customerNumber}`. V2 errors use RFC 9457 ProblemDetail
+responses with the `application/problem+json` media type.
+
+V2 specification conventions and the starter template are in
+`src/main/resources/openapi/v2/README.md` and
+`src/main/resources/openapi/v2/_template.yaml`. The endpoint inventory is in
+`docs/api-v2/endpoint-groups.json`. Generated API documentation is available at
+`/bank-api/v3/api-docs/v1` and `/bank-api/v3/api-docs/v2`; Swagger UI is at
+`/bank-api/swagger-ui/index.html`. The springdoc `/v3/api-docs` URL refers to
+the OpenAPI 3 documentation endpoint, not to an API version.
+
 ## H2 In-Memory Database
 
 Make sure to use jdbc:h2:mem:testdb as your jdbc url. If you intend to you use custom database name, please
