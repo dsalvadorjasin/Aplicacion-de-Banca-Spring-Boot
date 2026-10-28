@@ -3,6 +3,8 @@ package com.coding.exercise.bankapp.v2.accounts;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.coding.exercise.bankapp.domain.AccountInformation;
 import com.coding.exercise.bankapp.repository.AccountRepository;
@@ -18,12 +20,14 @@ public class AccountsV2Adapter {
 	private final BankingServiceImpl bankingService;
 	private final AccountRepository accountRepository;
 	private final CustomerRepository customerRepository;
+	private final TransactionTemplate transactions;
 
 	public AccountsV2Adapter(BankingServiceImpl bankingService, AccountRepository accountRepository,
-			CustomerRepository customerRepository) {
+			CustomerRepository customerRepository, PlatformTransactionManager transactionManager) {
 		this.bankingService = bankingService;
 		this.accountRepository = accountRepository;
 		this.customerRepository = customerRepository;
+		this.transactions = new TransactionTemplate(transactionManager);
 	}
 
 	public AccountInformation find(long accountNumber) {
@@ -38,6 +42,11 @@ public class AccountsV2Adapter {
 	public synchronized AccountInformation create(AccountInformation account, long customerNumber) {
 		requirePositive(customerNumber, "Customer number");
 		validate(account);
+		// Commit before releasing the monitor, not after returning through a transactional proxy.
+		return transactions.execute(status -> createAccount(account, customerNumber));
+	}
+
+	private AccountInformation createAccount(AccountInformation account, long customerNumber) {
 		if (customerRepository.findByCustomerNumber(customerNumber).isEmpty()) {
 			throw new NotFoundException("Customer " + customerNumber + " not found");
 		}
@@ -50,8 +59,12 @@ public class AccountsV2Adapter {
 		if (exists) {
 			throw new ConflictException("Account " + account.getAccountNumber() + " already exists");
 		}
-		bankingService.addNewAccount(account, customerNumber);
-		return find(account.getAccountNumber());
+		try {
+			bankingService.addNewAccount(account, customerNumber);
+			return find(account.getAccountNumber());
+		} catch (IncorrectResultSizeDataAccessException exception) {
+			throw new ConflictException("Account " + account.getAccountNumber() + " already exists");
+		}
 	}
 
 	private static void validate(AccountInformation account) {

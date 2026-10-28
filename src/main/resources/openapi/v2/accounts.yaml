@@ -42,6 +42,12 @@ paths:
       operationId: addAccountV2
       tags: [Accounts]
       summary: Create an account for an existing customer
+      description: >-
+        Rejects account numbers already committed when checked. Creation and readback
+        are transactional; a duplicate detected during readback rolls back the V2 write.
+        V2 creates are serialized within one application instance. Global uniqueness
+        across application instances or legacy V1 writers is not guaranteed because
+        the shared storage and V1 duplicate-creation behavior are unchanged.
       parameters:
         - name: customerNumber
           in: path
