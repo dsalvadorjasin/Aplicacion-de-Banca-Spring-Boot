@@ -20,6 +20,9 @@ Use these status-code conventions:
   resources, `400` for invalid requests, `409` for duplicates, and `422` for
   business-rule violations.
 
+Unknown `/v2` URLs and unsupported methods also return ProblemDetail, handled
+centrally so group specifications do not need to define those cases.
+
 The V2 path is `/v2` followed by the V1 path. For example,
 `GET /customers/{customerNumber}` becomes
 `GET /v2/customers/{customerNumber}`.
