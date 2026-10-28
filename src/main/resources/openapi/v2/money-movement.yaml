@@ -1,0 +1,212 @@
+openapi: 3.0.3
+info:
+  title: API V2 Money movement
+  description: >-
+    Transfers between accounts and the transaction history of an account.
+    Data matches V1 except for the differences listed under x-v1-differences
+    on each operation.
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/accounts/transfer/{customerNumber}:
+    put:
+      operationId: transferFunds
+      summary: Transfer funds between two accounts
+      description: >-
+        Moves transferAmount from fromAccountNumber to toAccountNumber and records a
+        DEBIT transaction on the source account and a CREDIT transaction on the
+        target account, like V1. As in V1, the customer must exist but account
+        ownership is not checked. A rejected transfer changes no data.
+      x-v1-differences:
+        - A successful transfer returns 200 with a JSON TransferResult (customer number, both account numbers, the amount and both resulting balances) instead of V1's plain-text success message.
+        - Errors are RFC 9457 ProblemDetail responses (application/problem+json) instead of V1's plain-text messages; a missing customer, source account or target account is still 404.
+        - Insufficient funds returns 422 instead of V1's 400.
+        - A zero or negative transferAmount is rejected with 400; V1 accepts it, and a negative amount moves money from the target account to the source account.
+        - A missing fromAccountNumber, toAccountNumber or transferAmount is rejected with 400; V1 answers 500 for a missing transferAmount and 404 for a missing account number.
+        - A non-finite transferAmount (e.g. 1e400) is rejected with 400 instead of V1's plain-text 400 Insufficient Funds.
+        - A transfer that would make a balance non-finite (e.g. overflow to Infinity) is rejected with 422 without changing data; V1 applies it.
+        - A transfer involving an account with no stored balance is rejected with 422 instead of V1's 500.
+        - Duplicate stored customer or account numbers return 409 instead of V1's 500.
+        - Malformed or wrongly typed bodies and path parameters return 400 ProblemDetail instead of V1's Spring Boot error JSON.
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: Funds transferred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResult"
+        "400":
+          description: Malformed or invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Customer, source account or target account not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Duplicate stored customer or account numbers
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "422":
+          description: Insufficient funds, missing stored balance, or a resulting balance that is not finite
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+  /v2/accounts/transactions/{accountNumber}:
+    get:
+      operationId: getTransactions
+      summary: List all transactions of an account
+      x-v1-differences:
+        - A missing account returns 404 ProblemDetail instead of V1's 200 with an empty list.
+        - Duplicate stored account numbers return 409 ProblemDetail instead of V1's 500.
+        - A non-numeric account number returns 400 ProblemDetail instead of V1's Spring Boot error JSON.
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Transactions of the account (empty if it has none)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TransactionDetails"
+        "400":
+          description: Invalid account number
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "404":
+          description: Account not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+        "409":
+          description: Duplicate stored account numbers
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    TransferRequest:
+      type: object
+      required:
+        - fromAccountNumber
+        - toAccountNumber
+        - transferAmount
+      properties:
+        fromAccountNumber:
+          type: integer
+          format: int64
+        toAccountNumber:
+          type: integer
+          format: int64
+        transferAmount:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+    TransferResult:
+      type: object
+      additionalProperties: false
+      required:
+        - customerNumber
+        - fromAccountNumber
+        - toAccountNumber
+        - transferAmount
+        - fromAccountBalance
+        - toAccountBalance
+      properties:
+        customerNumber:
+          type: integer
+          format: int64
+        fromAccountNumber:
+          type: integer
+          format: int64
+        toAccountNumber:
+          type: integer
+          format: int64
+        transferAmount:
+          type: number
+          format: double
+        fromAccountBalance:
+          type: number
+          format: double
+          description: Balance of the source account after the transfer
+        toAccountBalance:
+          type: number
+          format: double
+          description: Balance of the target account after the transfer
+    TransactionDetails:
+      type: object
+      additionalProperties: false
+      required:
+        - accountNumber
+        - txDateTime
+        - txType
+        - txAmount
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+        txDateTime:
+          type: string
+          description: Same representation as V1
+        txType:
+          type: string
+          enum:
+            - DEBIT
+            - CREDIT
+        txAmount:
+          type: number
+          format: double
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
