@@ -1,0 +1,177 @@
+openapi: 3.0.3
+info:
+  title: Money movement V2
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/accounts/transfer/{customerNumber}:
+    put:
+      operationId: transferFunds
+      summary: Transfer funds between accounts
+      parameters:
+        - name: customerNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+      responses:
+        '200':
+          description: Completed transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletedTransfer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/BusinessRule'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-v1-differences:
+        - "Successful transfers return a JSON description instead of V1's plain-text success message."
+        - "Insufficient funds returns 422 instead of V1's 400."
+        - "Missing or null account fields return 400 instead of V1's 404; missing or null transferAmount returns 400 instead of V1's 500."
+        - "Zero, negative, and non-finite transfer amounts return 400 without changing balances or creating transactions; V1 accepts zero, negative, NaN, and negative infinity with 200, while positive infinity returns 400 for insufficient funds."
+        - "Errors use application/problem+json ProblemDetail instead of V1's plain text or default JSON."
+  /v2/accounts/transactions/{accountNumber}:
+    get:
+      operationId: listAccountTransactions
+      summary: List transactions for an existing account
+      parameters:
+        - name: accountNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Transaction history, including an empty list for a new account
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionDetails'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-v1-differences:
+        - "A missing account returns 404 ProblemDetail instead of V1's 200 empty JSON array."
+        - "Errors use application/problem+json ProblemDetail instead of V1's default JSON."
+components:
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: Customer or account not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    UnsupportedMediaType:
+      description: Unsupported request content type
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    BusinessRule:
+      description: Insufficient funds
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+  schemas:
+    TransferRequest:
+      type: object
+      required: [fromAccountNumber, toAccountNumber, transferAmount]
+      properties:
+        fromAccountNumber:
+          type: integer
+          format: int64
+        toAccountNumber:
+          type: integer
+          format: int64
+        transferAmount:
+          type: number
+          format: double
+          description: A finite, strictly positive amount; NaN and infinities are rejected
+          minimum: 0
+          exclusiveMinimum: true
+    CompletedTransfer:
+      type: object
+      required: [customerNumber, fromAccountNumber, toAccountNumber, transferAmount]
+      properties:
+        customerNumber:
+          type: integer
+          format: int64
+        fromAccountNumber:
+          type: integer
+          format: int64
+        toAccountNumber:
+          type: integer
+          format: int64
+        transferAmount:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+    TransactionDetails:
+      type: object
+      required: [accountNumber, txDateTime, txType, txAmount]
+      properties:
+        accountNumber:
+          type: integer
+          format: int64
+        txDateTime:
+          type: string
+          description: V1 transaction time, serialized from a SQL TIME column
+          pattern: '^\d{2}:\d{2}:\d{2}$'
+        txType:
+          type: string
+          enum: [DEBIT, CREDIT]
+        txAmount:
+          type: number
+          format: double
+    ProblemDetail:
+      type: object
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+      additionalProperties: true
