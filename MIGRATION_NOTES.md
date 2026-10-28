@@ -151,3 +151,140 @@ If rollback to Java 8 is needed:
 - Migration notes created
 
 The migration is complete and the application is ready for production deployment on Java 11.
+
+# Spring Boot 2.7.18 -> 3.3.x / Java 17 Migration
+
+## Overview
+
+This section covers the upgrade from Spring Boot 2.7.18 / Java 11 to Spring Boot 3.3.13 / Java 17.
+The baseline e2e suite added before this change (`BankingHttpContractTest`, `BaselinePersistenceDefectTest`,
+`SecurityHttpTest`, `BankingApplicationTests`) is the check that HTTP behavior is preserved.
+
+## Build Configuration (`pom.xml`)
+
+- `spring-boot-starter-parent`: `2.7.18` -> `3.3.13` (latest 3.3.x patch)
+- `java.version` and `maven.compiler.release`: `11` -> `17`
+- `maven-compiler-plugin` `<release>`: `11` -> `17`
+- `maven-enforcer-plugin` `requireJavaVersion`: `[11,)` -> `[17,)`
+- Resulting stack: Spring Framework 6.1, Spring Security 6.3, Hibernate ORM 6.5.3.Final, Tomcat 10.1, H2 2.2
+
+## Dependencies
+
+| Before | After | Reason |
+|--------|-------|--------|
+| `org.springdoc:springdoc-openapi-ui:1.6.15` | `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0` | springdoc 1.x targets Boot 2; 2.6.0 is the line built for Boot 3.3 |
+| `org.glassfish.jaxb:jaxb-runtime:2.3.8` | removed | javax-based JAXB runtime; the app does not use JAXB, and Hibernate 6 brings the Jakarta `jaxb-runtime` 4.x transitively |
+
+`mvn dependency:tree` contains no `javax.*` artifacts after the change.
+
+## javax -> jakarta
+
+All `javax.persistence.*` imports in `model/` (`Account`, `Address`, `BankInfo`, `Contact`, `Customer`,
+`CustomerAccountXRef`, `Transaction`) now use `jakarta.persistence.*`. No other Jakarta EE `javax.*` imports
+existed in main or test code.
+
+## Security Configuration
+
+Old (`WebSecurityConfigurerAdapter`, removed in Spring Security 6):
+
+```java
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    protected void configure(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity.authorizeRequests().antMatchers("/").permitAll().and()
+                .authorizeRequests().antMatchers("/h2-console/**").permitAll();
+        httpSecurity.csrf().disable();
+        httpSecurity.headers().frameOptions().disable();
+    }
+}
+```
+
+New (`@Bean SecurityFilterChain`, lambda DSL):
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    httpSecurity
+            .authorizeHttpRequests(auth -> auth
+                    .requestMatchers(antMatcher("/")).permitAll()
+                    .requestMatchers(antMatcher("/h2-console/**")).permitAll()
+                    .anyRequest().permitAll())
+            .csrf(AbstractHttpConfigurer::disable)
+            .headers(headers -> headers
+                    .frameOptions(frame -> frame.disable())
+                    .xssProtection(xss -> xss.headerValue(HeaderValue.ENABLED_MODE_BLOCK)));
+    return httpSecurity.build();
+}
+```
+
+- The old config had no `anyRequest()` rule, so under Security 5 every endpoint was open (Basic credentials from
+  `spring.security.user.*` were never required). Security 6 denies unmatched requests, so
+  `anyRequest().permitAll()` keeps the API open exactly as before.
+- `AntPathRequestMatcher.antMatcher(...)` is used because the H2 console registers a second servlet, which makes
+  `requestMatchers(String)` ambiguous.
+- Security 6 changed the default `X-XSS-Protection` header from `1; mode=block` to `0`. The old value is kept
+  explicitly so response headers are unchanged (`SecurityHttpTest` pins them).
+- CSRF stays disabled and `X-Frame-Options` stays absent (H2 console frames).
+
+## OpenAPI
+
+- Swagger UI still at `/bank-api/swagger-ui/index.html`; `/bank-api/swagger-ui.html` still redirects (302) to it.
+- `/bank-api/v3/api-docs` still serves OpenAPI `3.0.1` with title `BANKING APPLICATION REST API` and the same 7 paths.
+- `ApplicationConfig` (`OpenAPI` bean) and the `io.swagger.v3.oas.annotations` on the controllers needed no changes.
+
+## CI
+
+`.github/workflows/ci.yml`: JDK `11` -> `17` (Temurin). Nothing else changed.
+
+## Test Changes
+
+Test count is unchanged (15 run by Maven). No test was deleted, disabled or loosened.
+
+1. `BankingHttpContractTest`: removed the test-only `UuidDialect` (an `H2Dialect` subclass overriding
+   `getTypeName(int, long, int, int)` to map `BINARY` to `binary(16)`) and its `spring.jpa.database-platform`
+   property. That Hibernate 5 API no longer exists in Hibernate 6, and the workaround is no longer needed:
+   Hibernate 6 maps `java.util.UUID` to H2's native `uuid` type (16 bytes). All assertions are unchanged.
+   Reference: Hibernate 6.0 migration guide, "UUID mapping changes"
+   (https://github.com/hibernate/hibernate-orm/blob/6.0/migration-guide.adoc).
+2. `BaselinePersistenceDefectTest` (`@Tag("baseline-defect")`): this class pinned the Boot 2.7 defect where
+   Hibernate 5.6 + H2 2.x created UUID ids as `binary(255)`, so every read of a stored entity returned 500.
+   Hibernate 6 fixes the mapping, and keeping the 500s would mean re-introducing a known defect, so the
+   expectations now pin the fixed behavior on the same unmodified schema: id columns are 16 bytes, and stored
+   customer read/list/update/delete, account creation and transfer for a stored customer, and stored account
+   read/transactions succeed with the same responses as `BankingHttpContractTest`. The two test methods were
+   renamed from `...Fail` to `...Succeed` to match. Same reference as above.
+
+Compile warnings for `ResponseEntity.getStatusCodeValue()` (deprecated in Spring Framework 6) are left as is
+to avoid test churn; the method still exists in 6.1.
+
+## Behavioral Changes
+
+- Stored customers and accounts are now readable on the default schema: requests that returned 500 on Boot 2.7
+  (stored customer GET/PUT/DELETE, `/customers/all`, account add/transfer for a stored customer, stored account
+  GET and transactions) now return the documented success responses. This is the fix of the baseline UUID defect.
+- No other HTTP status, body or header change was observed: all `SecurityHttpTest` and `BankingHttpContractTest`
+  expectations pass unchanged, including the pinned quirks (account GET returns 302, duplicates give 500, `{}`
+  bodies give 500, open API with no auth challenge).
+- Log format follows Boot 3 defaults (ISO-8601 timestamps).
+
+## Verification Results
+
+- JDK: `openjdk version "17.0.19" 2026-04-21` (Ubuntu), Maven 3.8.8 via `./mvnw`
+- `./mvnw -B clean verify`: BUILD SUCCESS, Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+- `./mvnw -B test`: BUILD SUCCESS, Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+- Baseline on JDK 17 before the change (Boot 2.7.18, release 11): 15 tests, all green
+
+**Startup check** (`java -jar target/bank-app-1.0.0.jar`): Spring Boot v3.3.13, Hibernate ORM 6.5.3.Final,
+Tomcat 10.1.42, started in about 3.4 seconds on port 8989 with context path `/bank-api`, no ERROR lines
+(only the existing `spring.jpa.open-in-view` WARN).
+
+| Endpoint | Status |
+|----------|--------|
+| `/` | 404 (JSON error, as before) |
+| `/h2-console/` | 200 |
+| `/actuator/health` | 200 `{"status":"UP"}` |
+| `/actuator/env` | 404 |
+| `/v3/api-docs` | 200, OpenAPI 3.0.1, 7 paths |
+| `/swagger-ui/index.html` | 200 |
+| `/swagger-ui.html` | 302 -> `/bank-api/swagger-ui/index.html` |
+| `/customers/all` | 200 |
+| `/accounts/{absent}` | 404 |
