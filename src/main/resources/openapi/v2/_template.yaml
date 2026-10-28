@@ -1,0 +1,72 @@
+# Copy this file to <group id>.yaml.
+# Keep each group spec self-contained with no cross-file $ref.
+# Paths must start with /v2; replace the example operation with the group's operations.
+openapi: 3.0.3
+info:
+  title: V2 API group template
+  version: 2.0.0
+servers:
+  - url: /
+paths:
+  /v2/examples/{exampleId}:
+    get:
+      operationId: getExample
+      tags:
+        - Examples
+      summary: Get an example
+      parameters:
+        - name: exampleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Example found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Example'
+        '404':
+          description: Example not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences:
+        # List every intentional V1/V2 difference asserted by a test; use [] if there are none.
+        - "Example only: replace this entry with the differences asserted by the group's tests."
+components:
+  schemas:
+    Example:
+      type: object
+      required:
+        - exampleId
+        - name
+      properties:
+        exampleId:
+          type: integer
+        name:
+          type: string
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+      additionalProperties: true

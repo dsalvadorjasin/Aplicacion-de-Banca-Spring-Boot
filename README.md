@@ -83,6 +83,20 @@ http://localhost:8989/bank-api/h2-console/
 
 2. Browse to <project-root>/src/test/resources to find sample requests to add customer and accounts.
 
+## API V2
+
+V1 remains available at its existing unversioned paths. V2 uses the same
+resources under `/v2`; for example,
+`GET /customers/{customerNumber}` becomes
+`GET /v2/customers/{customerNumber}`. V2 errors use RFC 9457 ProblemDetail
+responses with the `application/problem+json` media type.
+
+V2 specifications and conventions are in
+`src/main/resources/openapi/v2/README.md` and `_template.yaml`. The endpoint
+group inventory is `docs/api-v2/endpoint-groups.json`. OpenAPI documents are
+available at `/bank-api/v3/api-docs/v1` and `/bank-api/v3/api-docs/v2`, and the
+Swagger UI includes a group selector. In springdoc's `/v3/api-docs` URL, “v3”
+refers to OpenAPI 3, not to an API version.
 
 ## Migration Notes
 
