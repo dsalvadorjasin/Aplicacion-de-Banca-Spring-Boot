@@ -1,0 +1,319 @@
+# V2 customer write operations. Self-contained: no cross-file $ref.
+openapi: 3.0.3
+info:
+  title: Bank API V2 - Customer writes
+  version: 2.0.0
+  description: >-
+    Create, update and delete customers. Same data as the V1 /customers write
+    endpoints, with REST status codes, JSON bodies and RFC 9457 ProblemDetail
+    errors. Each operation lists its intentional V1 differences under
+    x-v1-differences.
+servers:
+  - url: /
+tags:
+  - name: Customers V2
+paths:
+  /v2/customers/add:
+    post:
+      operationId: addCustomerV2
+      tags:
+        - Customers V2
+      summary: Add a customer
+      description: >-
+        Creates a customer and returns it. customerNumber, contactDetails and
+        customerAddress are required, and customerNumber must not already be in use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerWriteRequest'
+      responses:
+        '201':
+          description: Customer created
+          headers:
+            Location:
+              description: URL of the created customer, /bank-api/v2/customers/{customerNumber}.
+              required: true
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Missing or malformed body, or a missing required field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: A customer with this customerNumber already exists
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: Request body is not application/json
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: Unexpected error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences:
+        - "Success returns the created customer as application/json instead of the plain-text message 'New Customer created successfully.' (status stays 201)."
+        - "Success adds a Location header pointing to /bank-api/v2/customers/{customerNumber}; V1 sends no Location header."
+        - "A customerNumber that already exists returns 409 ProblemDetail and stores nothing; V1 returns 201 and stores a second customer with the same number."
+        - "A body without contactDetails or customerAddress returns 400 ProblemDetail and stores nothing; V1 returns 500."
+        - "A body without customerNumber returns 400 ProblemDetail and stores nothing; V1 returns 201 and stores a customer with no number."
+        - "A missing or malformed JSON body returns 400 as application/problem+json; V1 returns 400 with Spring Boot's default error JSON."
+        - "A non-JSON Content-Type returns 415 as application/problem+json; V1 returns 415 with Spring Boot's default error JSON."
+  /v2/customers/{customerNumber}:
+    parameters:
+      - name: customerNumber
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    put:
+      operationId: updateCustomerV2
+      tags:
+        - Customers V2
+      summary: Update a customer
+      description: >-
+        Replaces the customer's names, status, contact details and address and
+        returns the updated customer. As in V1, a customerNumber in the body is
+        ignored; the path identifies the customer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdateRequest'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Non-numeric customerNumber, missing or malformed body, or a missing required field
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: More than one customer has this customerNumber (only possible through V1 creates)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: Request body is not application/json
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: Unexpected error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences:
+        - "Success returns the updated customer as application/json instead of the plain-text message 'Success: Customer updated.' (status stays 200)."
+        - "A missing customer returns 404 as application/problem+json instead of the plain-text message 'Customer Number {n} not found.'."
+        - "A body without contactDetails or customerAddress returns 400 ProblemDetail and changes nothing; V1 returns 500."
+        - "A customerNumber shared by several customers returns 409 ProblemDetail; V1 returns 500."
+        - "A missing or malformed JSON body, or a non-numeric customerNumber, returns 400 as application/problem+json; V1 returns 400 with Spring Boot's default error JSON."
+        - "A non-JSON Content-Type returns 415 as application/problem+json; V1 returns 415 with Spring Boot's default error JSON."
+    delete:
+      operationId: deleteCustomerV2
+      tags:
+        - Customers V2
+      summary: Delete a customer
+      description: Deletes the customer. As in V1, the customer's accounts are kept.
+      responses:
+        '204':
+          description: Customer deleted
+        '400':
+          description: Non-numeric customerNumber
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Customer not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: More than one customer has this customerNumber (only possible through V1 creates)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: Unexpected error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+      x-v1-differences:
+        - "Success returns 204 with no body instead of 200 with the plain-text message 'Success: Customer deleted.'."
+        - "A missing customer returns 404 ProblemDetail instead of 400 with the plain-text message 'Customer does not exist.'."
+        - "A customerNumber shared by several customers returns 409 ProblemDetail; V1 returns 500."
+        - "A non-numeric customerNumber returns 400 as application/problem+json; V1 returns 400 with Spring Boot's default error JSON."
+components:
+  schemas:
+    CustomerWriteRequest:
+      type: object
+      required:
+        - customerNumber
+        - contactDetails
+        - customerAddress
+      properties:
+        customerNumber:
+          type: integer
+          format: int64
+        firstName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        contactDetails:
+          $ref: '#/components/schemas/ContactDetails'
+        customerAddress:
+          $ref: '#/components/schemas/AddressDetails'
+    CustomerUpdateRequest:
+      type: object
+      required:
+        - contactDetails
+        - customerAddress
+      properties:
+        customerNumber:
+          type: integer
+          format: int64
+          nullable: true
+          description: Ignored; the path identifies the customer.
+        firstName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        contactDetails:
+          $ref: '#/components/schemas/ContactDetails'
+        customerAddress:
+          $ref: '#/components/schemas/AddressDetails'
+    Customer:
+      type: object
+      required:
+        - customerNumber
+        - firstName
+        - middleName
+        - lastName
+        - status
+        - contactDetails
+        - customerAddress
+      properties:
+        customerNumber:
+          type: integer
+          format: int64
+        firstName:
+          type: string
+          nullable: true
+        middleName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        contactDetails:
+          $ref: '#/components/schemas/ContactDetails'
+        customerAddress:
+          $ref: '#/components/schemas/AddressDetails'
+      additionalProperties: false
+    ContactDetails:
+      type: object
+      properties:
+        emailId:
+          type: string
+          nullable: true
+        homePhone:
+          type: string
+          nullable: true
+        workPhone:
+          type: string
+          nullable: true
+    AddressDetails:
+      type: object
+      properties:
+        address1:
+          type: string
+          nullable: true
+        address2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        zip:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+    ProblemDetail:
+      type: object
+      required:
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+      additionalProperties: true
