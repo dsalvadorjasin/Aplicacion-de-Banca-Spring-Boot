@@ -71,7 +71,9 @@ public class ApiV2OpenApiConfig {
 
         if (openApi.getTags() != null) {
             openApi.getTags().removeIf(tag -> !usedTags.contains(tag.getName()));
-            openApi.setTags(null);
+            if (openApi.getTags().isEmpty()) {
+                openApi.setTags(null);
+            }
         }
 
         if (openApi.getComponents() == null || openApi.getComponents().getSchemas() == null) {
