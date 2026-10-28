@@ -1,26 +1,16 @@
 package com.coding.exercise.bankapp;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.hibernate.dialect.H2Dialect;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
-import java.sql.Types;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Real HTTP contract with only UUID column width repaired in an isolated test database. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "spring.datasource.url=jdbc:h2:mem:http-contract;DB_CLOSE_DELAY=-1",
-    "spring.jpa.hibernate.ddl-auto=create-drop",
-    "spring.jpa.database-platform=com.coding.exercise.bankapp.BankingHttpContractTest$UuidDialect"})
+    "spring.jpa.hibernate.ddl-auto=create-drop"})
 class BankingHttpContractTest extends HttpTestSupport {
-    /** Hibernate 5 defaults UUID columns to binary(255); UUIDs require exactly 16 bytes. */
-    public static class UuidDialect extends H2Dialect {
-        @Override public String getTypeName(int code, long length, int precision, int scale) {
-            return code == Types.BINARY ? "binary(16)" : super.getTypeName(code, length, precision, scale);
-        }
-    }
-
     @Test void customerCrud() throws Exception {
         long c = id(); createCustomer(c);
         var found = get("/customers/" + c);
