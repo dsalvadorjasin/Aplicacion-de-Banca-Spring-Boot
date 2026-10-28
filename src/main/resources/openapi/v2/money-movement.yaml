@@ -25,6 +25,7 @@ paths:
         - A zero or negative transferAmount is rejected with 400; V1 accepts it, and a negative amount moves money from the target account to the source account.
         - A missing fromAccountNumber, toAccountNumber or transferAmount is rejected with 400; V1 answers 500 for a missing transferAmount and 404 for a missing account number.
         - A non-finite transferAmount (e.g. 1e400) is rejected with 400 instead of V1's plain-text 400 Insufficient Funds.
+        - A fractional account number (e.g. 700001.9) or a JSON string in place of an account number or transferAmount returns 400 ProblemDetail in V2; V1 truncates fractional account numbers and coerces numeric strings, then performs the transfer.
         - A transfer that would make a balance non-finite (e.g. overflow to Infinity) is rejected with 422 without changing data; V1 applies it.
         - A transfer involving an account with no stored balance is rejected with 422 instead of V1's 500.
         - Duplicate stored customer or account numbers return 409 instead of V1's 500.

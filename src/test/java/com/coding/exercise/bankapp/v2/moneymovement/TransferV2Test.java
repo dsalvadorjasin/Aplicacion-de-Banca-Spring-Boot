@@ -208,7 +208,7 @@ class TransferV2Test {
     }
 
     @Test
-    void missingTransferFieldsAre400InV2AndPreserveV1Behavior() throws Exception {
+    void missingAndNullTransferFieldsAre400InV2AndPreserveV1Behavior() throws Exception {
         Setup setup = setup(100.0, 20.0);
         String v1Path = "/accounts/transfer/" + setup.customer();
         String v2Path = "/v2/accounts/transfer/" + setup.customer();
@@ -235,6 +235,21 @@ class TransferV2Test {
         ResponseEntity<String> v2To = data.v2Invalid(HttpMethod.PUT, v2Path, missingTo);
         data.assertProblem(v2To, 400, "toAccountNumber must not be null.", v2Path);
         assertRejectedState(setup, 100.0, 20.0);
+
+        String nullAmount = transferJson(Long.toString(setup.from()), Long.toString(setup.to()), "null");
+        ResponseEntity<String> v2NullAmount = data.v2Invalid(HttpMethod.PUT, v2Path, nullAmount);
+        data.assertProblem(v2NullAmount, 400, "transferAmount must not be null.", v2Path);
+        assertRejectedState(setup, 100.0, 20.0);
+
+        String nullFrom = transferJson("null", Long.toString(setup.to()), "1");
+        ResponseEntity<String> v2NullFrom = data.v2Invalid(HttpMethod.PUT, v2Path, nullFrom);
+        data.assertProblem(v2NullFrom, 400, "fromAccountNumber must not be null.", v2Path);
+        assertRejectedState(setup, 100.0, 20.0);
+
+        String nullTo = transferJson(Long.toString(setup.from()), "null", "1");
+        ResponseEntity<String> v2NullTo = data.v2Invalid(HttpMethod.PUT, v2Path, nullTo);
+        data.assertProblem(v2NullTo, 400, "toAccountNumber must not be null.", v2Path);
+        assertRejectedState(setup, 100.0, 20.0);
     }
 
     @Test
@@ -250,6 +265,99 @@ class TransferV2Test {
         String path = "/v2/accounts/transfer/" + setup.customer();
         ResponseEntity<String> v2 = data.v2Invalid(HttpMethod.PUT, path, request);
         data.assertProblem(v2, 400, "transferAmount must be a finite number.", path);
+        assertRejectedState(setup, 100.0, 20.0);
+    }
+
+    @Test
+    void fractionalAccountNumbersAreRejectedInV2WhileV1TruncatesTheSource() throws Exception {
+        Setup v2Setup = setup(100.0, 20.0);
+        String v2Path = "/v2/accounts/transfer/" + v2Setup.customer();
+        ResponseEntity<String> v2 = data.v2Invalid(
+                HttpMethod.PUT,
+                v2Path,
+                transferJson(v2Setup.from() + ".9", Long.toString(v2Setup.to()), "5"));
+        data.assertProblem(v2, 400, null, v2Path);
+        assertRejectedState(v2Setup, 100.0, 20.0);
+
+        Setup v1Setup = setup(100.0, 20.0);
+        String v1Path = "/accounts/transfer/" + v1Setup.customer();
+        ResponseEntity<String> v1 = data.exchange(
+                HttpMethod.PUT,
+                v1Path,
+                transferJson(v1Setup.from() + ".9", Long.toString(v1Setup.to()), "5"));
+        assertThat(v1.getStatusCode().value()).isEqualTo(200);
+        assertThat(v1.getBody()).isEqualTo(
+                "Success: Amount transferred for Customer Number " + v1Setup.customer());
+        data.assertBalance(v1Setup.from(), 95.0);
+        data.assertBalance(v1Setup.to(), 25.0);
+    }
+
+    @Test
+    void fractionalTargetAccountNumberIsRejectedWithoutChanges() throws Exception {
+        Setup setup = setup(100.0, 20.0);
+        String path = "/v2/accounts/transfer/" + setup.customer();
+        ResponseEntity<String> response = data.v2Invalid(
+                HttpMethod.PUT,
+                path,
+                transferJson(Long.toString(setup.from()), setup.to() + ".9", "5"));
+        data.assertProblem(response, 400, null, path);
+        assertRejectedState(setup, 100.0, 20.0);
+    }
+
+    @Test
+    void numericStringsAreRejectedInV2ButAcceptedByV1() throws Exception {
+        Setup v2FromSetup = setup(100.0, 20.0);
+        String v2FromPath = "/v2/accounts/transfer/" + v2FromSetup.customer();
+        ResponseEntity<String> v2From = data.v2Invalid(
+                HttpMethod.PUT,
+                v2FromPath,
+                transferJson("\"" + v2FromSetup.from() + "\"", Long.toString(v2FromSetup.to()), "5"));
+        data.assertProblem(v2From, 400, null, v2FromPath);
+        assertRejectedState(v2FromSetup, 100.0, 20.0);
+
+        Setup v2AmountSetup = setup(100.0, 20.0);
+        String v2AmountPath = "/v2/accounts/transfer/" + v2AmountSetup.customer();
+        ResponseEntity<String> v2Amount = data.v2Invalid(
+                HttpMethod.PUT,
+                v2AmountPath,
+                transferJson(Long.toString(v2AmountSetup.from()), Long.toString(v2AmountSetup.to()), "\"5\""));
+        data.assertProblem(v2Amount, 400, null, v2AmountPath);
+        assertRejectedState(v2AmountSetup, 100.0, 20.0);
+
+        Setup v1FromSetup = setup(100.0, 20.0);
+        String v1FromPath = "/accounts/transfer/" + v1FromSetup.customer();
+        ResponseEntity<String> v1From = data.exchange(
+                HttpMethod.PUT,
+                v1FromPath,
+                transferJson("\"" + v1FromSetup.from() + "\"", Long.toString(v1FromSetup.to()), "5"));
+        assertThat(v1From.getStatusCode().value()).isEqualTo(200);
+        assertThat(v1From.getBody()).isEqualTo(
+                "Success: Amount transferred for Customer Number " + v1FromSetup.customer());
+        data.assertBalance(v1FromSetup.from(), 95.0);
+        data.assertBalance(v1FromSetup.to(), 25.0);
+
+        Setup v1AmountSetup = setup(100.0, 20.0);
+        String v1AmountPath = "/accounts/transfer/" + v1AmountSetup.customer();
+        ResponseEntity<String> v1Amount = data.exchange(
+                HttpMethod.PUT,
+                v1AmountPath,
+                transferJson(Long.toString(v1AmountSetup.from()), Long.toString(v1AmountSetup.to()), "\"5\""));
+        assertThat(v1Amount.getStatusCode().value()).isEqualTo(200);
+        assertThat(v1Amount.getBody()).isEqualTo(
+                "Success: Amount transferred for Customer Number " + v1AmountSetup.customer());
+        data.assertBalance(v1AmountSetup.from(), 95.0);
+        data.assertBalance(v1AmountSetup.to(), 25.0);
+    }
+
+    @Test
+    void outOfRangeAccountNumberReturnsBadRequestWithoutChanges() throws Exception {
+        Setup setup = setup(100.0, 20.0);
+        String path = "/v2/accounts/transfer/" + setup.customer();
+        ResponseEntity<String> response = data.v2Invalid(
+                HttpMethod.PUT,
+                path,
+                transferJson(Long.toString(setup.from()), "99999999999999999999", "5"));
+        data.assertProblem(response, 400, null, path);
         assertRejectedState(setup, 100.0, 20.0);
     }
 
@@ -406,6 +514,12 @@ class TransferV2Test {
         data.assertProblemHasNoBootFields(v2PathResponse);
         data.assertProblem(v2PathResponse, 400, null, v2BadPath);
         assertRejectedState(setup, 100.0, 20.0);
+    }
+
+    private String transferJson(String fromAccountNumber, String toAccountNumber, String transferAmount) {
+        return "{\"fromAccountNumber\":" + fromAccountNumber
+                + ",\"toAccountNumber\":" + toAccountNumber
+                + ",\"transferAmount\":" + transferAmount + "}";
     }
 
     private Setup setup(double fromBalance, double toBalance) {
